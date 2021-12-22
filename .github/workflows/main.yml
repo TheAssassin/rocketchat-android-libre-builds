@@ -1,0 +1,49 @@
+---
+
+name: Build and deploy Android app
+
+on: [push, pull_request]
+
+env:
+  TERM: xterm-256color
+
+jobs:
+  android-apk:
+    strategy:
+      fail-fast: false
+      matrix:
+        BRANCH: ["master", "4.21.0", "latest-release"]
+
+    name: "Build Android .apk"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: "Build .apk"
+        env:
+          BRANCH: ${{ matrix.BRANCH }}
+        run: |
+          export ARCH=x86_64
+          bash -xe build-in-docker.sh /tmp/workplace
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: AppImage x86_64
+          path: "*.apk*"
+
+  upload:
+    name: Create release and upload artifacts
+    runs-on: ubuntu-latest
+    needs:
+      - android-apk
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+      - name: Inspect directory after downloading artifacts
+        run: ls -alFR
+      - name: Create release and upload artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+            wget -q https://github.com/TheAssassin/pyuploadtool/releases/download/continuous/pyuploadtool-x86_64.AppImage
+            chmod +x pyuploadtool-x86_64.AppImage
+            ./pyuploadtool-x86_64.AppImage *.apk*
